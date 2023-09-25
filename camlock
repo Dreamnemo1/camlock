@@ -1,0 +1,94 @@
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+local Camera = game.Workspace.CurrentCamera
+
+local isCameraLocked = false
+local lockedPlayer = nil
+local previousMousePosition = nil
+
+-- Function to lock the camera onto a player
+local function lockCameraToPlayer(player)
+    if player and player.Character then
+        isCameraLocked = true
+        lockedPlayer = player
+        Camera.CameraType = Enum.CameraType.Custom
+        previousMousePosition = UserInputService:GetMouseLocation()
+    end
+end
+
+-- Function to unlock the camera
+local function unlockCamera()
+    isCameraLocked = false
+    lockedPlayer = nil
+    Camera.CameraType = Enum.CameraType.Custom
+end
+
+-- Function to update the camera position based on mouse movement
+local function updateCamera()
+    if isCameraLocked and lockedPlayer and lockedPlayer.Character then
+        local mousePosition = UserInputService:GetMouseLocation()
+        local mouseDelta = mousePosition - previousMousePosition
+        local cameraPosition = Camera.CFrame.Position
+        local cameraLookVector = (lockedPlayer.Character.HumanoidRootPart.Position - cameraPosition).unit
+        local cameraRightVector = cameraLookVector:Cross(Vector3.new(0, 1, 0)).unit
+
+        local sensitivity = 0.1  -- Adjust the sensitivity as needed
+
+        local newCameraPosition = cameraPosition + cameraRightVector * mouseDelta.x * sensitivity
+        local newCameraLookVector = (lockedPlayer.Character.HumanoidRootPart.Position - newCameraPosition).unit
+
+        Camera.CFrame = CFrame.new(newCameraPosition, newCameraPosition + newCameraLookVector * 15)
+        previousMousePosition = mousePosition
+    end
+end
+
+-- Function to toggle camera lock
+local function toggleCameraLock()
+    if isCameraLocked then
+        unlockCamera()
+    else
+        local closestPlayer = nil
+        local closestDistance = math.huge
+
+        local localPlayer = Players.LocalPlayer
+        local localCharacter = localPlayer.Character
+
+        if localCharacter then
+            local localPosition = localCharacter.HumanoidRootPart.Position
+
+            for _, player in pairs(Players:GetPlayers()) do
+                if player ~= localPlayer and player.Character then
+                    local playerPosition = player.Character.HumanoidRootPart.Position
+                    local distance = (playerPosition - localPosition).Magnitude
+                    if distance < closestDistance then
+                        closestDistance = distance
+                        closestPlayer = player
+                    end
+                end
+            end
+
+            lockCameraToPlayer(closestPlayer)
+        end
+    end
+end
+
+-- Listen for the 'Q' key press to toggle camera lock
+UserInputService.InputBegan:Connect(function(input)
+    if input.KeyCode == Enum.KeyCode.Q then
+        toggleCameraLock()
+    end
+end)
+
+-- Listen for camera updates
+UserInputService.InputChanged:Connect(function(input)
+    if isCameraLocked and input.UserInputType == Enum.UserInputType.MouseMovement then
+        updateCamera()
+    end
+end)
+
+-- Unlock the camera when the player leaves the game
+game.Players.PlayerRemoving:Connect(function(player)
+    if player == Players.LocalPlayer then
+        unlockCamera()
+    end
+end)
